@@ -1,6 +1,3 @@
-/*
- * Copyright (C) 2015, Leo Ma <begeekmyfriend@gmail.com>
- */
 
 #include <stdio.h>
 #include <stdlib.h>

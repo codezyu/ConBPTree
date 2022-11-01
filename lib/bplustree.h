@@ -1,6 +1,3 @@
-/*
- * Copyright (C) 2015, Leo Ma <begeekmyfriend@gmail.com>
- */
 
 #ifndef _BPLUS_TREE_H
 #define _BPLUS_TREE_H
