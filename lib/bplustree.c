@@ -986,8 +986,9 @@ struct kvPair* bplus_tree_get_range(struct bplus_tree *tree, key_t key1, key_t k
     key_t min = key1 <= key2 ? key1 : key2;
     key_t max = min == key1 ? key2 : key1;
     struct bplus_node *node = tree->root;
-
+    pthread_rwlock_t parent=NULL;
     while (node != NULL) {
+        pthread_rwlock_rdlock(node->lock);
             if (is_leaf(node)) {
                     struct bplus_leaf *ln = (struct bplus_leaf *)node;
                     i = key_binary_search(ln->key, ln->entries, min);
@@ -995,6 +996,7 @@ struct kvPair* bplus_tree_get_range(struct bplus_tree *tree, key_t key1, key_t k
                             i = -i - 1;
                             if (i >= ln->entries) {
                                     if (list_is_last(&ln->link, &tree->list[0])) {
+                                        pthread_rwlock_unlock(ln->lock);
                                             return root;
                                     }
                                     ln = list_next_entry(ln, link);
@@ -1010,6 +1012,7 @@ struct kvPair* bplus_tree_get_range(struct bplus_tree *tree, key_t key1, key_t k
                                 list=list->next;
                             }
                             if (++i >= ln->entries) {
+                                pthread_rwlock_unlock(ln->lock);
                                     if (list_is_last(&ln->link, &tree->list[0])) {
                                             return root;
                                     }
@@ -1018,6 +1021,10 @@ struct kvPair* bplus_tree_get_range(struct bplus_tree *tree, key_t key1, key_t k
                             }
                     }
             } else {
+                if(parent!=NULL){
+                    pthread_rwlock_unlock(parent);
+                }
+                parent=node;
                     struct bplus_non_leaf *nln = (struct bplus_non_leaf *)node;
                     //先查找最小的
                     i = key_binary_search(nln->key, nln->children - 1, min);
