@@ -56,7 +56,7 @@ static struct bplus_leaf *leaf_new(void)
         struct bplus_leaf *node = calloc(1, sizeof(*node));
         assert(node != NULL);
         //初始化读写锁
-        pthread_rwlock_init(node->lock, NULL);
+        int t=pthread_rwlock_init(&(node->lock), NULL);
         list_init(&node->link);
         node->type = BPLUS_TREE_LEAF;
         node->parent_key_idx = -1;
@@ -82,9 +82,9 @@ static val_t bplus_tree_search(struct bplus_tree *tree, key_t key)
         while (node != NULL) {
                 if (is_leaf(node)) {
                         struct bplus_leaf *ln = (struct bplus_leaf *)node;
-                        pthread_rwlock_rdlock(&ln->lock);
+                        pthread_rwlock_rdlock(&(ln->lock));
                         if(parentlock!=NULL)
-                            pthread_rwlock_unlock(parentlock);
+                            pthread_rwlock_unlock(&parentlock);
                         i = key_binary_search(ln->key, ln->entries, key);
                         if(i>=0){
                             val_t t= ln->data[i];
@@ -100,7 +100,7 @@ static val_t bplus_tree_search(struct bplus_tree *tree, key_t key)
                         pthread_rwlock_rdlock(&nln->lock);
                         //成功获得锁给父节点解锁
                         if(parentlock!=NULL)
-                            pthread_rwlock_unlock(parentlock);
+                            pthread_rwlock_unlock(&parentlock);
                         i = key_binary_search(nln->key, nln->children - 1, key);
                         if (i >= 0) {
                                 node = nln->sub_ptr[i + 1];
@@ -427,7 +427,7 @@ static int leaf_insert(struct bplus_tree *tree, struct bplus_leaf *leaf, key_t k
                 /* splited sibling node */
                 struct bplus_leaf *sibling = leaf_new();
             //叶子节点加入写锁
-            pthread_rwlock_wrlock(leaf->lock);
+            pthread_rwlock_wrlock(&leaf->lock);
                 /* sibling leaf replication due to location of insertion */
                 if (insert < split) {
                         leaf_split_left(leaf, sibling, key, data, insert);
@@ -440,10 +440,10 @@ static int leaf_insert(struct bplus_tree *tree, struct bplus_leaf *leaf, key_t k
                                 (struct bplus_node *)leaf, leaf->key[0], 0);
                     //释放祖先节点的写锁
                     for(int i=0;i<num;i++){
-                        pthread_rwlock_unlock(before[num]);
+                        pthread_rwlock_unlock(&before[num]);
                     }
                     //释放当前叶子节点
-                    pthread_rwlock_unlock(leaf->lock);
+                    pthread_rwlock_unlock(&(leaf->lock));
                     return ret;
 
                 } else {
@@ -451,22 +451,22 @@ static int leaf_insert(struct bplus_tree *tree, struct bplus_leaf *leaf, key_t k
                                 (struct bplus_node *)sibling, sibling->key[0], 0);
                     //释放祖先节点的写锁
                     for(int i=0;i<num;i++){
-                        pthread_rwlock_unlock(before[num]);
+                        pthread_rwlock_unlock(&before[num]);
                     }
                     //释放当前叶子节点
-                    pthread_rwlock_unlock(leaf->lock);
+                    pthread_rwlock_unlock(&(leaf->lock));
                     return ret;
                 }
         } else {
             //叶子节点加入写锁
-            pthread_rwlock_wrlock(leaf->lock);
+            pthread_rwlock_wrlock(&leaf->lock);
             //释放祖先节点的写锁
             for(int i=0;i<num;i++){
-                pthread_rwlock_unlock(before[num]);
+                pthread_rwlock_unlock(&before[num]);
             }
                 leaf_simple_insert(leaf, key, data, insert);
             //释放当前叶子节点
-            pthread_rwlock_unlock(leaf->lock);
+            pthread_rwlock_unlock(&(leaf->lock));
         }
 
         return 0;
@@ -484,7 +484,7 @@ int bplus_tree_insert(struct bplus_tree *tree, key_t key, val_t data)
                 } else {
                         struct bplus_non_leaf *nln = (struct bplus_non_leaf *)node;
                         //获取当前节点写锁
-                        pthread_rwlock_wrlock(nln->lock);
+                        pthread_rwlock_wrlock(&nln->lock);
                         //判断父节点是否可以释放
                         if(num!=0){
                             //如果父节点安全
@@ -774,16 +774,16 @@ static void leaf_simple_remove(struct bplus_leaf *leaf, int remove)
 static int leaf_remove(struct bplus_tree *tree, struct bplus_leaf *leaf, key_t key,pthread_rwlock_t* before,int num)
 {
         //加入写锁
-        pthread_rwlock_wrlock(leaf->lock);
+        pthread_rwlock_wrlock(&leaf->lock);
         int remove = key_binary_search(leaf->key, leaf->entries, key);
         if (remove < 0) {
                 /* Not exist */
             //释放祖先节点的写锁
             for(int i=0;i<num;i++){
-                pthread_rwlock_unlock(before[num]);
+                pthread_rwlock_unlock(&before[num]);
             }
             //释放当前叶子节点
-            pthread_rwlock_unlock(leaf->lock);
+            pthread_rwlock_unlock(&(leaf->lock));
                 return -1;
         }
         if (leaf->entries <= (tree->entries + 1) / 2) {
@@ -814,41 +814,41 @@ static int leaf_remove(struct bplus_tree *tree, struct bplus_leaf *leaf, key_t k
                         }
                     //释放祖先节点的写锁
                     for(int i=0;i<num;i++){
-                        pthread_rwlock_unlock(before[num]);
+                        pthread_rwlock_unlock(&before[num]);
                     }
                     //释放当前叶子节点
-                    pthread_rwlock_unlock(leaf->lock);
+                    pthread_rwlock_unlock(&(leaf->lock));
                 } else {
                         if (leaf->entries == 1) {
                                 /* delete the only last node */
                                 assert(key == leaf->key[0]);
                             //释放祖先节点的写锁
                             for(int i=0;i<num;i++){
-                                pthread_rwlock_unlock(before[num]);
+                                pthread_rwlock_unlock(&before[num]);
                             }
                                 tree->root = NULL;
                                 leaf_delete(leaf);
                             //释放当前叶子节点
-                            pthread_rwlock_unlock(leaf->lock);
+                            pthread_rwlock_unlock(&(leaf->lock));
                                 return 0;
                         } else {
                             //释放祖先节点的写锁
                             for(int i=0;i<num;i++){
-                                pthread_rwlock_unlock(before[num]);
+                                pthread_rwlock_unlock(&before[num]);
                             }
                             leaf_simple_remove(leaf, remove);
                             //释放当前叶子节点
-                            pthread_rwlock_unlock(leaf->lock);
+                            pthread_rwlock_unlock(&(leaf->lock));
                         }
                 }
         } else {
             //释放祖先节点的写锁
             for(int i=0;i<num;i++){
-                pthread_rwlock_unlock(before[num]);
+                pthread_rwlock_unlock(&before[num]);
             }
                 leaf_simple_remove(leaf, remove);
             //释放当前叶子节点
-            pthread_rwlock_unlock(leaf->lock);
+            pthread_rwlock_unlock(&(leaf->lock));
 
         }
 
@@ -868,7 +868,7 @@ int bplus_tree_delete(struct bplus_tree *tree, key_t key)
                 } else {
                         struct bplus_non_leaf *nln = (struct bplus_non_leaf *)node;
                         //获取当前节点写锁
-                        pthread_rwlock_wrlock(nln->lock);
+                        pthread_rwlock_wrlock(&nln->lock);
                         //判断父节点是否可以释放
                         if(num!=0){
                             //如果父节点安全
@@ -913,16 +913,16 @@ int bplus_tree_update(struct bplus_tree *tree, key_t key, val_t data)
             pthread_rwlock_wrlock(&ln->lock);
             //获得写锁后释放父亲节点
             if(parentlock!=NULL)
-                pthread_rwlock_unlock(parentlock);
+                pthread_rwlock_unlock(&parentlock);
             ln->data[i]=data;
-            pthread_rwlock_unlock(&ln->lock);
+            pthread_rwlock_unlock(&(ln->lock));
             return 0;
         } else {
             struct bplus_non_leaf *nln = (struct bplus_non_leaf *)node;
             pthread_rwlock_rdlock(&nln->lock);
             //成功获得锁给父节点解锁
             if(parentlock!=NULL)
-                pthread_rwlock_unlock(parentlock);
+                pthread_rwlock_unlock(&parentlock);
             i = key_binary_search(nln->key, nln->children - 1, key);
             if (i >= 0) {
                 node = nln->sub_ptr[i + 1];
@@ -988,15 +988,19 @@ struct kvPair* bplus_tree_get_range(struct bplus_tree *tree, key_t key1, key_t k
     struct bplus_node *node = tree->root;
     pthread_rwlock_t parent=NULL;
     while (node != NULL) {
-        pthread_rwlock_rdlock(node->lock);
             if (is_leaf(node)) {
                     struct bplus_leaf *ln = (struct bplus_leaf *)node;
+                    //上锁叶子节点
+                    pthread_rwlock_rdlock(&(ln->lock));
+                    if(parent!=NULL){
+                        pthread_rwlock_unlock(&parent);
+                    }
                     i = key_binary_search(ln->key, ln->entries, min);
                     if (i < 0) {
                             i = -i - 1;
                             if (i >= ln->entries) {
                                     if (list_is_last(&ln->link, &tree->list[0])) {
-                                        pthread_rwlock_unlock(ln->lock);
+                                        pthread_rwlock_unlock(&(ln->lock));
                                             return root;
                                     }
                                     ln = list_next_entry(ln, link);
@@ -1012,7 +1016,7 @@ struct kvPair* bplus_tree_get_range(struct bplus_tree *tree, key_t key1, key_t k
                                 list=list->next;
                             }
                             if (++i >= ln->entries) {
-                                pthread_rwlock_unlock(ln->lock);
+                                pthread_rwlock_unlock(&(ln->lock));
                                     if (list_is_last(&ln->link, &tree->list[0])) {
                                             return root;
                                     }
@@ -1021,11 +1025,11 @@ struct kvPair* bplus_tree_get_range(struct bplus_tree *tree, key_t key1, key_t k
                             }
                     }
             } else {
-                if(parent!=NULL){
-                    pthread_rwlock_unlock(parent);
-                }
-                parent=node;
                     struct bplus_non_leaf *nln = (struct bplus_non_leaf *)node;
+                    pthread_rwlock_rdlock(&nln->lock);
+                    if(parent!=NULL){
+                        pthread_rwlock_unlock(&parent);
+                    }
                     //先查找最小的
                     i = key_binary_search(nln->key, nln->children - 1, min);
                     if (i >= 0) {
@@ -1035,6 +1039,7 @@ struct kvPair* bplus_tree_get_range(struct bplus_tree *tree, key_t key1, key_t k
                             i = -i - 1;
                             node = nln->sub_ptr[i];
                     }
+                    parent=nln->lock;
             }
     }
 
